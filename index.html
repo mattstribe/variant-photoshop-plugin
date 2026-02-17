@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="main-ui">
+    <img src="icons/VARIANT_logo.png" id="pluginLogo" alt="STRIBE" />
+    <sp-heading>Design Generator</sp-heading>
+
+    <div class="league-display">
+      <img id="leagueLogo" class="league-logo" alt="League logo" />
+      <sp-body class="info-display">
+        <span id="folderDisplay">Folder: Loading...</span>
+        <span id="btnSelectFolder" class="button-link">(Browse)</span>
+      </sp-body>
+    </div>
+
+    <div class="merch-settings-section">
+      <sp-body class="info-display merch-setting-row">Design ID: <span id="designIdDisplay">—</span></sp-body>
+      <sp-body class="info-display merch-setting-row">Product ID: <span id="productIdDisplay">—</span></sp-body>
+      <sp-body class="merch-settings-refresh">
+        <span id="btnRefreshMerchSettings" class="button-link">Refresh</span>
+      </sp-body>
+    </div>
+
+    <button id="btnListTeams">LIST TEAMS</button>
+    <sp-body id="status"></sp-body>
+    <sp-button id="btnGenerateDesigns">GENERATE DESIGNS</sp-button>
+
+    <sp-body class="info-display">v1.0.0</sp-body>
+    <sp-body style="font-size:11px;opacity:0.6;margin-top:20px;">
+      STRIBE MEDIA • © 2025
+    </sp-body>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>
