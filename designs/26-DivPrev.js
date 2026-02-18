@@ -35,12 +35,7 @@ async function apply(doc, context) {
     await translate(teamNameLayer, 0, -1 * heightChange);
     await translate(bottomFolder, 0, -1 * heightChange);
 
-    await translate(teamNameLayer, 0, heightChange);
-    await translate(bottomFolder, 0, heightChange);
-
   }
-
-
 }
 
 module.exports = { apply };

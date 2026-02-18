@@ -73,7 +73,17 @@ async function replaceLayerWithFile(layer, fileEntry) {
   return true;
 }
 
+async function placeIntoLayer(layer, fileEntry) {
+  if (!layer || !fileEntry) return false;
+  const token = await fs.createSessionToken(fileEntry);
+  await app.batchPlay([{ _obj: "select", _target: [{ _ref: "layer", _id: layer._id }], makeVisible: true }], { synchronousExecution: true });
+  await app.batchPlay([{ _obj: "placedLayerReplaceContents", _target: [{ _ref: "layer", _id: layer._id }], null: { _path: token, _kind: "local" } }], { synchronousExecution: true });
+  return true;
+}
+
 module.exports = {
   IMAGE_CDN_BASE,
-  replaceLayerWithImage
+  replaceLayerWithImage,
+  replaceLayerWithFile,
+  placeIntoLayer
 };
