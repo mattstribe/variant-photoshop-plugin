@@ -157,7 +157,7 @@ async function runGenerateDesigns() {
         }
 
         // Export PNG
-        const exportFileName = `${tName.replace(/\s+/g, '-')}_${designId}_${productId}.png`;
+        const exportFileName = `${tName.replace(/\s+/g, '-')}_${designId}_${productId}.png`.toLowerCase();
         const exportFile = await exportsFolder.createFile(exportFileName, { overwrite: true });
         const cdnPath = exportHandler.buildCdnPath(baseFolder.name, designId, exportFileName);
         await exportHandler.exportPng(doc, exportFile, cdnPath, cloudExportEnabled);
