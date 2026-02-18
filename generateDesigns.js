@@ -119,7 +119,8 @@ async function runGenerateDesigns() {
         await delay(500);
         teamNameLayer.textItem.contents = tName.toUpperCase();
 
-        const isBlack = productId.slice(-3).toUpperCase() === 'BLK';
+        const productColor = (productId.split('_')[1] || '').toUpperCase();
+        const isBlack = productColor === 'BLACK';
         const logoPath = `LOGOS/TEAMS/${tConf}/${divAbb}`;
         const logoFile = `${tFull}.png`;
         const logoUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFile)}`;
