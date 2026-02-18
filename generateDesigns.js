@@ -1,6 +1,7 @@
 const storage = require("./storage.js");
 const leagueConfig = require("./leagueConfig.js");
 const imageHandler = require("./imageHandler.js");
+const exportHandler = require("./exportHandler.js");
 const designRegistry = require("./designs/index.js");
 const { app, core } = require("photoshop");
 
@@ -19,23 +20,60 @@ async function runGenerateDesigns() {
     if (statusEl) statusEl.textContent = "Loading team data...";
     const merchTeams = await leagueConfig.loadMerchTeams(baseFolder);
     const allTeams = await leagueConfig.loadTeamInfo(baseFolder);
-    const { designId } = await leagueConfig.loadMerchSettings(baseFolder);
+    const { designId, productId } = await leagueConfig.loadMerchSettings(baseFolder);
     if (!merchTeams.length || !allTeams.length) {
       if (statusEl) statusEl.textContent = "No merch/team data found.";
       return;
     }
 
-    const designScript = designId ? designRegistry.getDesignScript(designId) : null;
+    let designScript = null;
+    if (designId) {
+      designScript = designRegistry.getDesignScript(designId);
+    }
     if (designId && !designScript) {
       console.warn(`Design script "${designId}" not found; using default behavior.`);
     }
+
+    // Navigate to template folder: baseFolder > MERCH > Design Files > {designId}
+    let merchFolder;
+    try {
+      merchFolder = await baseFolder.getEntry("MERCH");
+    } catch {
+      if (statusEl) statusEl.textContent = "MERCH folder not found in base folder.";
+      return;
+    }
+    const designFilesFolder = await merchFolder.getEntry("Design Files");
+    const designFolder = await designFilesFolder.getEntry(designId);
+
+    // Template file
+    const templateFile = await designFolder.getEntry(`${designId}_TEMPLATE.psd`);
+
+
+    // Create the save file entry
+    const workingFileName = `${designId}_WORKING.psd`;
+    const saveFile = await designFolder.createFile(workingFileName, { overwrite: true });
+
+    // Create Exports folder inside designFolder if it doesn't exist (BEFORE executeAsModal)
+    let exportsFolder;
+    try {
+      exportsFolder = await designFolder.getEntry("Exports");
+    } catch {
+      exportsFolder = await designFolder.createFolder("Exports");
+    }
+
+    // Read cloud export checkbox state BEFORE entering executeAsModal
+    const exportToCloudCheckbox = document.getElementById("exportToCloudCheckbox");
+    const cloudExportEnabled = exportToCloudCheckbox && exportToCloudCheckbox.checked === true;
 
     let processed = 0;
     let missing = 0;
 
     await core.executeAsModal(async () => {
+      // Open template and immediately Save As working file
+      await app.open(templateFile);
       const doc = app.activeDocument;
       if (!doc) throw new Error("No active Photoshop document is open.");
+      if (doc.saveAs && doc.saveAs.psd) await doc.saveAs.psd(saveFile);
 
       for (let i = 0; i < merchTeams.length; i++){
         const merchFullTeam = merchTeams[i].teamCity + " " + merchTeams[i].teamName;
@@ -63,14 +101,13 @@ async function runGenerateDesigns() {
 
         await delay(500);
         teamNameLayer.textItem.contents = tName.toUpperCase();
-        await delay(500);
 
         const logoUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/LOGOS/TEAMS/${encodeURIComponent(tConf)}/${encodeURIComponent(divAbb)}/${encodeURIComponent(tFull)}.png`;
         let ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
         if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `LOGOS/TEAMS/${tConf}/${divAbb}/${tFull}.png`, baseFolder);
         if (!ok) await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
 
-        if (designScript?.apply) {
+        if (designScript && designScript.apply) {
           const context = {
             baseFolder,
             tCity,
@@ -88,8 +125,18 @@ async function runGenerateDesigns() {
             setTextColor,
             duplicate,
           };
-          await designScript.apply(doc, context);
+          //await designScript.apply(doc, context);
         }
+
+
+        // Save the working PSD
+        await doc.save();
+
+        // Export PNG to Exports folder
+        const exportFileName = `${tName.replace(/\s+/g, '-')}_${designId}_${productId}.png`;
+        const exportFile = await exportsFolder.createFile(exportFileName, { overwrite: true });
+        const cdnPath = exportHandler.buildCdnPath(baseFolder.name, designId, exportFileName);
+        await exportHandler.exportPng(doc, exportFile, cdnPath, cloudExportEnabled);
 
         processed += 1;
       }
@@ -104,6 +151,8 @@ async function runGenerateDesigns() {
     console.error("Generate designs error:", err);
   }
 }
+
+// ===== Helpers =====
 
 function hexToRgb(hex) {
   const h = (hex || '').replace(/^#/, "").trim();
@@ -124,13 +173,10 @@ async function fillColor(layer, hex) {
 }
 
 async function setStrokeColor(layer, hex) {
-
   const { r, g, b } = hexToRgb(hex);
-
   await app.batchPlay([
     { _obj: "select", _target: [{ _ref: "layer", _id: layer._id }], makeVisible: false, selectionModifier: { _enum: "selectionModifierType", _value: "replaceSelection" }, _isCommand: true }
   ], { synchronousExecution: true });
-
   await app.batchPlay([
     {
       _obj: "set",
@@ -174,76 +220,66 @@ const setTextColor = (layer, backgroundColor) => {
   else color.rgb.hexValue = 'ffffff';
   layer.textItem.characterStyle.color = color;
 };
+
 async function duplicate(group, newName, deltaX = 0, deltaY = 0) {
-      // 1) Select source group
+  // 1) Select source group
+  await app.batchPlay(
+    [{
+      _obj: "select",
+      _target: [{ _ref: "layer", _id: group._id }],
+      makeVisible: false
+    }],
+    { synchronousExecution: true }
+  );
+
+  // 2) Duplicate (new group becomes active)
+  await app.batchPlay(
+    [{ _obj: "duplicate", _target: [{ _ref: "layer", _id: group._id }] }],
+    { synchronousExecution: true }
+  );
+
+  const dup = app.activeDocument.activeLayers[0];
+
+  // 3) Rename duplicated group
+  try { dup.name = newName; } catch {}
+
+  // 4) Recursively strip " copy" suffixes from dup and all descendants
+  const stripSuffix = n => n.replace(/\s+copy(?:\s*\d+)?$/i, "");
+  const scrubNamesRecursively = (layerLike) => {
+    try {
+      if (layerLike.name) {
+        const cleaned = stripSuffix(layerLike.name);
+        if (cleaned !== layerLike.name) layerLike.name = cleaned;
+      }
+    } catch {}
+    if (layerLike.layers && layerLike.layers.length) {
+      for (const child of layerLike.layers) scrubNamesRecursively(child);
+    }
+  };
+  scrubNamesRecursively(dup);
+
+  // 5) Translate/move the duplicated group if requested
+  if (deltaX !== 0 || deltaY !== 0) {
     await app.batchPlay(
       [{
-        _obj: "select",
-        _target: [{ _ref: "layer", _id: group._id }],
-        makeVisible: false
+        _obj: "transform",
+        _target: [{ _ref: "layer", _id: dup._id }],
+        freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
+        offset: {
+          _obj: "offset",
+          horizontal: { _unit: "pixelsUnit", _value: deltaX },
+          vertical:   { _unit: "pixelsUnit", _value: deltaY }
+        }
       }],
       { synchronousExecution: true }
     );
-
-    // 2) Duplicate (new group becomes active)
-    await app.batchPlay(
-        [{ _obj: "duplicate", _target: [{ _ref: "layer", _id: group._id }] }],
-        { synchronousExecution: true }
-      );
-
-      const dup = app.activeDocument.activeLayers[0];
-
-      // 3) Rename duplicated group
-      try { dup.name = newName; } catch {}
-
-      // 4) Recursively strip " copy" suffixes from dup and all descendants
-      const stripSuffix = n => n.replace(/\s+copy(?:\s*\d+)?$/i, "");
-      const scrubNamesRecursively = (layerLike) => {
-        try {
-          if (layerLike.name) {
-            const cleaned = stripSuffix(layerLike.name);
-            if (cleaned !== layerLike.name) layerLike.name = cleaned;
-          }
-        } catch {}
-        // Recurse into children if it's a group
-        if (layerLike.layers && layerLike.layers.length) {
-          for (const child of layerLike.layers) scrubNamesRecursively(child);
-        }
-      };
-      scrubNamesRecursively(dup);
-
-      // 5) Translate/move the duplicated group if requested
-      if (deltaX !== 0 || deltaY !== 0) {
-        await app.batchPlay(
-          [{
-            _obj: "transform",
-            _target: [{ _ref: "layer", _id: dup._id }],
-            freeTransformCenterState: { _enum: "quadCenterState", _value: "QCSAverage" },
-            offset: {
-              _obj: "offset",
-              horizontal: { _unit: "pixelsUnit", _value: deltaX },
-              vertical:   { _unit: "pixelsUnit", _value: deltaY }
-            }
-          }],
-          { synchronousExecution: true }
-        );
-      }
-
-      return dup;
-    }
-
-// Ensure folder path under a root FolderEntry; returns the deepest folder
-async function ensureFolderPath(rootFolder, segments) {
-  let current = rootFolder;
-  for (const segment of segments) {
-    try { current = await current.getEntry(segment); }
-    catch { current = await current.createFolder(segment); }
   }
-  return current;
+
+  return dup;
 }
+
 
 
 module.exports = {
   runGenerateDesigns
 };
-
