@@ -23,6 +23,7 @@ function isCloudExportEnabled() {
 }
 
 const EXPORT_UPLOAD_API_URL = "https://license-server-five-red.vercel.app/api/upload";
+const EXPORT_PLUGIN_ID = "variant-merch";
 
 const R2_ACCOUNT_ID = null;
 const R2_ACCESS_KEY_ID = null;
@@ -43,7 +44,8 @@ async function uploadViaAPI(fileEntry, remotePath) {
       headers: {
         'Content-Type': 'application/octet-stream',
         'X-File-Path': remotePath,
-        'X-File-Name': fileEntry.name
+        'X-File-Name': fileEntry.name,
+        'X-Plugin-ID': EXPORT_PLUGIN_ID
       },
       body: arrayBuffer
     });
