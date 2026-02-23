@@ -22,7 +22,7 @@ function isCloudExportEnabled() {
   }
 }
 
-const EXPORT_UPLOAD_API_URL = "https://license-server-five-red.vercel.app/api/upload";
+const EXPORT_UPLOAD_API_URL = "https://stribe-api.vercel.app/api/upload";
 const EXPORT_PLUGIN_ID = "variant-merch";
 
 const R2_ACCOUNT_ID = null;
