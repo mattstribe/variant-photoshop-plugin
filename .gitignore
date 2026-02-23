@@ -1,0 +1,13 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Local config
+folder-path.json
+merch-folder-path.json
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
