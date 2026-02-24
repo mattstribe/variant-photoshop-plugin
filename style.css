@@ -175,3 +175,15 @@ sp-button[disabled]::part(button):hover {
   background-color: #4b5563;
 }
 
+/* Center checkbox and label */
+.checkbox-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+/* Checkbox: show pointer hand on hover (match stribe-weekly-updates) */
+sp-checkbox,
+sp-checkbox::part(checkbox) {
+  cursor: pointer;
+}

@@ -4,11 +4,11 @@
 const photoshop = require("photoshop");
 const app = photoshop.app;
 const uxp = require("uxp");
-const fs = uxp.storage.localFileSystem;
 const storage = uxp.storage;
 
 // ===== CDN EXPORT CONFIGURATION =====
-const EXPORT_CDN_BASE_URL = "https://pub-3c06366d547445298c77e04b7c3c77ad.r2.dev";
+// Fallback only when API doesn't return url; set to your R2 bucket public URL (e.g. new account).
+const EXPORT_CDN_BASE_URL = "https://pub-a1e3e909e8764d3f963db78f1430fa42.r2.dev";
 
 function isCloudExportEnabled() {
   try {
@@ -25,11 +25,6 @@ function isCloudExportEnabled() {
 const EXPORT_UPLOAD_API_URL = "https://stribe-api.vercel.app/api/upload";
 const EXPORT_PLUGIN_ID = "variant-merch";
 
-const R2_ACCOUNT_ID = null;
-const R2_ACCESS_KEY_ID = null;
-const R2_SECRET_ACCESS_KEY = null;
-const R2_BUCKET_NAME = null;
-
 async function uploadViaAPI(fileEntry, remotePath) {
   if (!EXPORT_UPLOAD_API_URL) {
     return null;
@@ -39,25 +34,43 @@ async function uploadViaAPI(fileEntry, remotePath) {
     const fileData = await fileEntry.read({ format: storage.formats.binary });
     const arrayBuffer = new Uint8Array(fileData).buffer;
 
+    const headers = {
+      'Content-Type': 'application/octet-stream',
+      'X-File-Path': remotePath,
+      'X-File-Name': fileEntry.name,
+      'X-Plugin-ID': EXPORT_PLUGIN_ID
+    };
+    console.log("[uploadViaAPI] Sending request:", {
+      url: EXPORT_UPLOAD_API_URL,
+      method: "POST",
+      headers,
+      bodyByteLength: arrayBuffer.byteLength,
+      remotePath,
+      fileName: fileEntry.name
+    });
+
     const response = await fetch(EXPORT_UPLOAD_API_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-File-Path': remotePath,
-        'X-File-Name': fileEntry.name,
-        'X-Plugin-ID': EXPORT_PLUGIN_ID
-      },
+      headers,
       body: arrayBuffer
     });
 
     if (!response.ok) {
-      console.error(`Failed to upload via API: HTTP ${response.status} - ${response.statusText}`);
+      let errBody = "";
+      try {
+        const errJson = await response.json();
+        const parts = [errJson.error, errJson.details].filter(Boolean);
+        errBody = parts.length ? parts.join(" — ") : JSON.stringify(errJson);
+      } catch (_) {
+        errBody = await response.text() || response.statusText;
+      }
+      console.error(`Failed to upload via API: HTTP ${response.status} - ${errBody}`);
       return null;
     }
 
     const result = await response.json();
-    const publicUrl = result.url || `${EXPORT_CDN_BASE_URL}/${remotePath}`;
-    console.log(`Uploaded to CDN: ${publicUrl}`);
+    const publicUrl = result.url || (EXPORT_CDN_BASE_URL ? `${EXPORT_CDN_BASE_URL}/${remotePath}` : null);
+    if (publicUrl) console.log(`Uploaded to CDN: ${publicUrl}`);
     return publicUrl;
   } catch (err) {
     console.error(`Error uploading via API:`, err);
@@ -123,10 +136,10 @@ async function exportPng(doc, exportFile, cdnPath = null, cloudExportEnabled = n
 }
 
 function buildCdnPath(leagueName, designId, filename) {
-  const safeLeague = encodeURIComponent(leagueName);
+  // CDN path: designId/filename only (no league/merch prefix). Local export path is built in generateDesigns.js.
   const safeDesign = encodeURIComponent(designId);
   const safeFilename = encodeURIComponent(filename);
-  return `${safeLeague}/merch/${safeDesign}/${safeFilename}`;
+  return `${safeDesign}/${safeFilename}`;
 }
 
 module.exports = {
