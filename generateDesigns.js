@@ -190,11 +190,10 @@ async function runGenerateDesigns() {
           }
         }
 
-        // Export mockup PNG
+        // Export mockup PNG (local only; never upload mockups to cloud)
         const mockupExportName = exportFileName.replace('.png', '-mockup.png');
         const mockupExportFile = await mockupExportFolder.createFile(mockupExportName, { overwrite: true });
-        const mockupCdnPath = exportHandler.buildCdnPath(baseFolder.name, designId, mockupExportName);
-        await exportHandler.exportPng(mockDoc, mockupExportFile, mockupCdnPath, cloudExportEnabled);
+        await exportHandler.exportPng(mockDoc, mockupExportFile, null, false);
 
         // Close mockup without saving
         await mockDoc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
