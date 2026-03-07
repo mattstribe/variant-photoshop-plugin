@@ -22,7 +22,10 @@ async function getFileFromUrl(url) {
   if (imageCache[url]) return imageCache[url];
   try {
     const response = await fetch(url);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`[ImageHandler] CDN fetch failed: ${response.status} ${response.statusText} — ${url}`);
+      return null;
+    }
     const arrayBuffer = await response.arrayBuffer();
     const dataFolder = await fs.getDataFolder();
     let tempFolder;
@@ -52,8 +55,14 @@ async function getFileFromPath(baseFolder, relativePath) {
       current = await current.getEntry(parts[i]);
     }
     const file = await current.getEntry(parts[parts.length - 1]);
-    return file && file.isFile ? file : null;
-  } catch {
+    if (file && file.isFile) {
+      console.log(`[ImageHandler] Local file FOUND: ${relativePath}`);
+      return file;
+    }
+    console.warn(`[ImageHandler] Local path resolved but is not a file: ${relativePath}`);
+    return null;
+  } catch (err) {
+    console.warn(`[ImageHandler] Local file NOT found: ${relativePath} — ${err.message}`);
     return null;
   }
 }

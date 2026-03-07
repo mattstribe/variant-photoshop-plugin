@@ -23,7 +23,7 @@ async function apply(doc, context) {
   const width = b.right - b.left;
   const height = b.bottom - b.top;
 
-  let MAX_WIDTH = 4000
+  let MAX_WIDTH = 3500
 
   if (width > MAX_WIDTH){
     let percentScale = (MAX_WIDTH / width)

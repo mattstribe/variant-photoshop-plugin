@@ -37,14 +37,14 @@ async function fetchText(url) {
 function createHeaderMap(headerRow) {
   const headerMap = {};
   for (let i = 0; i < headerRow.length; i++) {
-    const key = String(headerRow[i] || "").trim();
+    const key = String(headerRow[i] || "").trim().toLowerCase();
     if (key) headerMap[key] = i;
   }
   return headerMap;
 }
 
 function getValue(row, columnName, headerMap) {
-  const idx = headerMap[columnName];
+  const idx = headerMap[String(columnName).trim().toLowerCase()];
   return typeof idx === "number" ? (row[idx] ?? "") : "";
 }
 
@@ -133,7 +133,7 @@ async function loadTeamInfo(baseFolder) {
       const teamName = String(getValue(row, "Team Name", headerMap) || "").trim();
       const fullTeam = String(getValue(row, "Full Team Name", headerMap) || "").trim() || `${teamCity} ${teamName}`.trim();
       teams.push({
-        conf: getValue(row, "Conf", headerMap) || getValue(row, "Tier", headerMap),
+        conf: getValue(row, "Conf", headerMap) || getValue(row, "Conference", headerMap) || getValue(row, "Tier", headerMap) || getValue(row, "Division", headerMap),
         div: getValue(row, "Division", headerMap),
         abb: getValue(row, "Abb", headerMap),
         teamCity,
