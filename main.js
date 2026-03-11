@@ -2,6 +2,7 @@ const storage = require("./storage.js");
 const leagueConfig = require("./leagueConfig.js");
 const generateDesigns = require("./generateDesigns.js");
 const uxpStorage = require("uxp").storage;
+const { app, core } = require("photoshop");
 
 async function setLeagueLogo(baseFolder, imgEl) {
   if (!imgEl) return;
@@ -34,16 +35,16 @@ async function refreshMerchSettings() {
 
   const baseFolder = await storage.getBaseFolder();
   if (!baseFolder) {
-    designIdEl.textContent = "—";
+    setDesignId(designIdEl, "");
     productIdEl.textContent = "—";
     return;
   }
   try {
     const { designId, productId } = await leagueConfig.loadMerchSettings(baseFolder);
-    designIdEl.textContent = designId || "—";
+    setDesignId(designIdEl, designId);
     productIdEl.textContent = productId || "—";
   } catch (err) {
-    designIdEl.textContent = "—";
+    setDesignId(designIdEl, "");
     productIdEl.textContent = "—";
     console.error("Merch settings:", err.message);
   }
@@ -67,7 +68,7 @@ async function refreshUI() {
     }
     const designIdEl = document.getElementById("designIdDisplay");
     const productIdEl = document.getElementById("productIdDisplay");
-    if (designIdEl) designIdEl.textContent = "—";
+    if (designIdEl) setDesignId(designIdEl, "");
     if (productIdEl) productIdEl.textContent = "—";
   }
 }
@@ -124,5 +125,39 @@ document.getElementById("btnListTeams").addEventListener("click", async () => {
 });
 
 document.getElementById("btnGenerateDesigns").addEventListener("click", generateDesigns.runGenerateDesigns);
+
+function setDesignId(el, designId) {
+  el.textContent = designId || "—";
+  el.classList.toggle("button-link", !!designId);
+}
+
+document.getElementById("designIdDisplay").addEventListener("click", async () => {
+  const designIdEl = document.getElementById("designIdDisplay");
+  const designId = designIdEl.textContent;
+  if (!designId || designId === "—") return;
+
+  const statusEl = document.getElementById("status");
+  const baseFolder = await storage.getBaseFolder();
+  if (!baseFolder) {
+    if (statusEl) statusEl.textContent = "Please select a league folder first.";
+    return;
+  }
+
+  try {
+    const merchFolder = await baseFolder.getEntry("MERCH");
+    const designFilesFolder = await merchFolder.getEntry("Design Files");
+    const designFolder = await designFilesFolder.getEntry(designId);
+    const templateFile = await designFolder.getEntry(`${designId}_TEMPLATE.psd`);
+
+    await core.executeAsModal(async () => {
+      await app.open(templateFile);
+    }, { commandName: "Open Design Template" });
+
+    if (statusEl) statusEl.textContent = "";
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Could not open template: ${err.message}`;
+    console.error("Open template error:", err);
+  }
+});
 
 refreshUI();
