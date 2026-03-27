@@ -20,7 +20,7 @@ async function runGenerateDesigns() {
     if (statusEl) statusEl.textContent = "Loading team data...";
     const merchTeams = await leagueConfig.loadMerchTeams(baseFolder);
     const allTeams = await leagueConfig.loadTeamInfo(baseFolder);
-    const { designId, productId } = await leagueConfig.loadMerchSettings(baseFolder);
+    const { designId, productId, colors } = await leagueConfig.loadMerchSettings(baseFolder);
     if (!merchTeams.length || !allTeams.length) {
       if (statusEl) statusEl.textContent = "No merch/team data found.";
       return;
@@ -56,11 +56,10 @@ async function runGenerateDesigns() {
       exportsFolder = await designFolder.createFolder("Exports");
     }
 
-    // Mockup template: MERCH/Blank Mockups/{productIdBase}/{productId}.psd
-    const productIdBase = productId.split('_')[0];
     const blankMockupsFolder = await merchFolder.getEntry("Blank Mockups");
-    const mockupProductFolder = await blankMockupsFolder.getEntry(productIdBase);
-    const mockupTemplateFile = await mockupProductFolder.getEntry(`${productId}.psd`);
+
+    // One variant per selected color, or productId alone if none (legacy sheets)
+    const colorVariants = colors.length > 0 ? colors : [null];
 
     // Mockup export folder: MERCH/Design Mockups/{designId}
     let designMockupsFolder;
@@ -84,124 +83,131 @@ async function runGenerateDesigns() {
     let missing = 0;
 
     await core.executeAsModal(async () => {
-      for (let i = 0; i < merchTeams.length; i++){
-        const merchFullTeam = merchTeams[i].teamCity + " " + merchTeams[i].teamName;
+      for (const colorLabel of colorVariants) {
+        const fullProductId = colorLabel ? `${productId}_${colorLabel}` : productId;
+        const productIdBase = fullProductId.split('_')[0];
+        const mockupProductFolder = await blankMockupsFolder.getEntry(productIdBase);
+        const mockupTemplateFile = await mockupProductFolder.getEntry(`${fullProductId}.psd`);
 
-        let [tCity, tName, tFull, tConf, tColor, tFound, divAbb] = ["", "", "", "", "4a4a4a", false, ""];
+        for (let i = 0; i < merchTeams.length; i++){
+          const merchFullTeam = merchTeams[i].teamCity + " " + merchTeams[i].teamName;
 
-        for (let c = 0; c < allTeams.length; c++) {
-          if (allTeams[c].fullTeam === merchFullTeam) {
-            divAbb = allTeams[c].abb;
-            tCity = allTeams[c].teamCity;
-            tName = allTeams[c].teamName;
-            tFull = allTeams[c].fullTeam;
-            tConf = allTeams[c].conf;
-            tColor = allTeams[c].color1 || "4a4a4a";
-            tFound = true;
-            break;
+          let [tCity, tName, tFull, tConf, tColor, tFound, divAbb] = ["", "", "", "", "4a4a4a", false, ""];
+
+          for (let c = 0; c < allTeams.length; c++) {
+            if (allTeams[c].fullTeam === merchFullTeam) {
+              divAbb = allTeams[c].abb;
+              tCity = allTeams[c].teamCity;
+              tName = allTeams[c].teamName;
+              tFull = allTeams[c].fullTeam;
+              tConf = allTeams[c].conf;
+              tColor = allTeams[c].color1 || "4a4a4a";
+              tFound = true;
+              break;
+            }
           }
-        }
 
-        if (!tFound) { missing += 1; continue; }
+          if (!tFound) { missing += 1; continue; }
 
-        // Open a fresh copy of the template each iteration
-        await app.open(templateFile);
-        const doc = app.activeDocument;
-        if (!doc) throw new Error("No active Photoshop document is open.");
+          // Open a fresh copy of the template each iteration
+          await app.open(templateFile);
+          const doc = app.activeDocument;
+          if (!doc) throw new Error("No active Photoshop document is open.");
 
-        const logoLayer = getByName(doc, 'LOGO');
-        const teamNameLayer = getByName(doc, 'TEAM NAME');
-        await delay(500);
-        if (teamNameLayer) {
-          teamNameLayer.textItem.contents = tName.toUpperCase();
-        }
-
-        const productColor = (productId.split('_')[1] || '').toUpperCase();
-        const isBlack = productColor === 'BLACK';
-        const logoPath = `LOGOS/TEAMS/${tConf}/${divAbb}`;
-        const logoFile = `${tFull}.png`;
-        const logoUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFile)}`;
-
-        console.log(`[LOGO DEBUG] Team: "${tFull}" | conf: "${tConf}" | divAbb: "${divAbb}" | isBlack: ${isBlack}`);
-        console.log(`[LOGO DEBUG] CDN URL: ${logoUrl}`);
-        console.log(`[LOGO DEBUG] Local path: ${logoPath}/${logoFile}`);
-
-        if (logoLayer) {
-          let ok = false;
-          if (isBlack) {
-            const logoFileLight = `${tFull}_LIGHT.png`;
-            const lightUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFileLight)}`;
-            ok = await imageHandler.replaceLayerWithImage(logoLayer, lightUrl);
-            if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFileLight}`, baseFolder);
+          const logoLayer = getByName(doc, 'LOGO');
+          const teamNameLayer = getByName(doc, 'TEAM NAME');
+          await delay(500);
+          if (teamNameLayer) {
+            teamNameLayer.textItem.contents = tName.toUpperCase();
           }
-          if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
-          if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFile}`, baseFolder);
-          if (!ok) await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
-        }
 
-        if (designScript && designScript.apply) {
-          const context = {
-            baseFolder,
-            tCity,
-            tName,
-            tFull,
-            tConf,
-            divAbb,
-            tColor,
-            logoLayer: getByName(doc, "LOGO"),
-            teamNameLayer: getByName(doc, "TEAM NAME"),
-            getByName: (parent, name) => getByName(parent || doc, name),
-            app,
-            fillColor,
-            setStrokeColor,
-            setTextColor,
-            duplicate,
-          };
-          await designScript.apply(doc, context);
-        }
+          const productColor = (colorLabel || productId.split('_')[1] || '').toUpperCase();
+          const isBlack = productColor === 'BLACK';
+          const logoPath = `LOGOS/TEAMS/${tConf}/${divAbb}`;
+          const logoFile = `${tFull}.png`;
+          const logoUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFile)}`;
 
-        // Export PNG
-        const exportFileName = `${tName.replace(/\s+/g, '-')}_${designId}_${productId}.png`.toLowerCase();
-        const exportFile = await exportsFolder.createFile(exportFileName, { overwrite: true });
-        const cdnPath = exportHandler.buildCdnPath(baseFolder.name, designId, exportFileName);
-        await exportHandler.exportPng(doc, exportFile, cdnPath, cloudExportEnabled);
+          console.log(`[LOGO DEBUG] Team: "${tFull}" | conf: "${tConf}" | divAbb: "${divAbb}" | isBlack: ${isBlack}`);
+          console.log(`[LOGO DEBUG] CDN URL: ${logoUrl}`);
+          console.log(`[LOGO DEBUG] Local path: ${logoPath}/${logoFile}`);
 
-        // Close design template
-        await doc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
-
-        // Open mockup template and place the design + logo
-        await app.open(mockupTemplateFile);
-        const mockDoc = app.activeDocument;
-
-        const frontLayer = getByName(mockDoc, 'FRONT');
-        const mockLogoLayer = getByName(mockDoc, 'LOGO');
-
-        if (frontLayer) {
-          await imageHandler.placeIntoLayer(frontLayer, exportFile);
-        }
-        if (mockLogoLayer) {
-          let mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, logoUrl);
-          if (!mockLogoOk) mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, `${logoPath}/${logoFile}`, baseFolder);
-          if (!mockLogoOk) await imageHandler.replaceLayerWithImage(mockLogoLayer, "LOGOS/LeagueLogo.png", baseFolder);
-        }
-
-        // Show only the matching conf tier in the TIERS folder
-        const tiersFolder = getByName(mockDoc, 'TIERS');
-        if (tiersFolder && tiersFolder.layers) {
-          for (const tierLayer of tiersFolder.layers) {
-            tierLayer.visible = (tierLayer.name === tConf);
+          if (logoLayer) {
+            let ok = false;
+            if (isBlack) {
+              const logoFileLight = `${tFull}_LIGHT.png`;
+              const lightUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFileLight)}`;
+              ok = await imageHandler.replaceLayerWithImage(logoLayer, lightUrl);
+              if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFileLight}`, baseFolder);
+            }
+            if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
+            if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFile}`, baseFolder);
+            if (!ok) await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
           }
+
+          if (designScript && designScript.apply) {
+            const context = {
+              baseFolder,
+              tCity,
+              tName,
+              tFull,
+              tConf,
+              divAbb,
+              tColor,
+              logoLayer: getByName(doc, "LOGO"),
+              teamNameLayer: getByName(doc, "TEAM NAME"),
+              getByName: (parent, name) => getByName(parent || doc, name),
+              app,
+              fillColor,
+              setStrokeColor,
+              setTextColor,
+              duplicate,
+            };
+            await designScript.apply(doc, context);
+          }
+
+          // Export PNG (full product id includes color suffix for templates / CDN)
+          const exportFileName = `${tName.replace(/\s+/g, '-')}_${designId}_${fullProductId}.png`.toLowerCase();
+          const exportFile = await exportsFolder.createFile(exportFileName, { overwrite: true });
+          const cdnPath = exportHandler.buildCdnPath(baseFolder.name, designId, exportFileName);
+          await exportHandler.exportPng(doc, exportFile, cdnPath, cloudExportEnabled);
+
+          // Close design template
+          await doc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
+
+          // Open mockup template and place the design + logo
+          await app.open(mockupTemplateFile);
+          const mockDoc = app.activeDocument;
+
+          const frontLayer = getByName(mockDoc, 'FRONT');
+          const mockLogoLayer = getByName(mockDoc, 'LOGO');
+
+          if (frontLayer) {
+            await imageHandler.placeIntoLayer(frontLayer, exportFile);
+          }
+          if (mockLogoLayer) {
+            let mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, logoUrl);
+            if (!mockLogoOk) mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, `${logoPath}/${logoFile}`, baseFolder);
+            if (!mockLogoOk) await imageHandler.replaceLayerWithImage(mockLogoLayer, "LOGOS/LeagueLogo.png", baseFolder);
+          }
+
+          // Show only the matching conf tier in the TIERS folder
+          const tiersFolder = getByName(mockDoc, 'TIERS');
+          if (tiersFolder && tiersFolder.layers) {
+            for (const tierLayer of tiersFolder.layers) {
+              tierLayer.visible = (tierLayer.name === tConf);
+            }
+          }
+
+          // Export mockup PNG (local only; never upload mockups to cloud)
+          const mockupExportName = exportFileName.replace('.png', '-mockup.png');
+          const mockupExportFile = await mockupExportFolder.createFile(mockupExportName, { overwrite: true });
+          await exportHandler.exportPng(mockDoc, mockupExportFile, null, false);
+
+          // Close mockup without saving
+          await mockDoc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
+
+          processed += 1;
         }
-
-        // Export mockup PNG (local only; never upload mockups to cloud)
-        const mockupExportName = exportFileName.replace('.png', '-mockup.png');
-        const mockupExportFile = await mockupExportFolder.createFile(mockupExportName, { overwrite: true });
-        await exportHandler.exportPng(mockDoc, mockupExportFile, null, false);
-
-        // Close mockup without saving
-        await mockDoc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
-
-        processed += 1;
       }
     }, { commandName: "Generate Merch Designs" });
 

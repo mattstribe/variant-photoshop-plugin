@@ -31,21 +31,25 @@ async function setLeagueLogo(baseFolder, imgEl) {
 async function refreshMerchSettings() {
   const designIdEl = document.getElementById("designIdDisplay");
   const productIdEl = document.getElementById("productIdDisplay");
+  const colorsEl = document.getElementById("colorsDisplay");
   if (!designIdEl || !productIdEl) return;
 
   const baseFolder = await storage.getBaseFolder();
   if (!baseFolder) {
     setDesignId(designIdEl, "");
     productIdEl.textContent = "—";
+    if (colorsEl) colorsEl.textContent = "—";
     return;
   }
   try {
-    const { designId, productId } = await leagueConfig.loadMerchSettings(baseFolder);
+    const { designId, productId, colors } = await leagueConfig.loadMerchSettings(baseFolder);
     setDesignId(designIdEl, designId);
     productIdEl.textContent = productId || "—";
+    if (colorsEl) colorsEl.textContent = colors.length ? colors.join(", ") : "—";
   } catch (err) {
     setDesignId(designIdEl, "");
     productIdEl.textContent = "—";
+    if (colorsEl) colorsEl.textContent = "—";
     console.error("Merch settings:", err.message);
   }
 }
@@ -68,8 +72,10 @@ async function refreshUI() {
     }
     const designIdEl = document.getElementById("designIdDisplay");
     const productIdEl = document.getElementById("productIdDisplay");
+    const colorsEl = document.getElementById("colorsDisplay");
     if (designIdEl) setDesignId(designIdEl, "");
     if (productIdEl) productIdEl.textContent = "—";
+    if (colorsEl) colorsEl.textContent = "—";
   }
 }
 

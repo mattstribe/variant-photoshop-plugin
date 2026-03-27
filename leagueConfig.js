@@ -151,25 +151,49 @@ async function loadTeamInfo(baseFolder) {
   }
 }
 
+/** Google Sheets CSV: checkbox cells often export as TRUE/FALSE. */
+function isCheckboxChecked(cell) {
+  const s = String(cell ?? "").trim().toLowerCase();
+  return s === "true" || s === "1" || s === "yes" || s === "x";
+}
+
+/**
+ * Selected product colors: F33 = checkbox, G33 = label (1-based). Scan downward.
+ */
+function parseSelectedColors(rows) {
+  const selected = [];
+  const startRowIndex = 32; // row 33
+  const maxScan = 40;
+  for (let r = startRowIndex; r < rows.length && r < startRowIndex + maxScan; r++) {
+    const row = rows[r] || [];
+    const checked = isCheckboxChecked(row[5]); // F
+    const label = String(row[6] ?? "").trim(); // G
+    if (checked && label) selected.push(label);
+  }
+  return selected;
+}
+
 /**
  * Load merch settings from the MERCH SETTINGS sheet.
- * G3 = Design ID, H3 = Product ID (1-based sheet cells).
+ * G3 = Design ID, H3 = Product ID (base, no color suffix).
+ * F33/G33 onward = checkbox + color label (selected rows are active colors).
  */
 async function loadMerchSettings(baseFolder) {
   try {
     const { merchSettingsUrl } = await getLeagueCsvUrls(baseFolder);
-    if (!merchSettingsUrl) return { designId: "", productId: "" };
+    if (!merchSettingsUrl) return { designId: "", productId: "", colors: [] };
 
     const rows = parseCSV(await fetchText(merchSettingsUrl));
     const row = rows[2]; // Row 3 (1-based)
-    if (!row) return { designId: "", productId: "" };
+    if (!row) return { designId: "", productId: "", colors: [] };
 
     const designId = String(row[6] ?? "").trim();  // G3 = column 7
     const productId = String(row[7] ?? "").trim(); // H3 = column 8
-    return { designId, productId };
+    const colors = parseSelectedColors(rows);
+    return { designId, productId, colors };
   } catch (err) {
     console.error("Error loading merch settings:", err);
-    return { designId: "", productId: "" };
+    return { designId: "", productId: "", colors: [] };
   }
 }
 
