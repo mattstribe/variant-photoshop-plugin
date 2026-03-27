@@ -111,13 +111,10 @@ async function runGenerateDesigns() {
 
         const logoLayer = getByName(doc, 'LOGO');
         const teamNameLayer = getByName(doc, 'TEAM NAME');
-        if (!logoLayer || !teamNameLayer) {
-          await doc.close(require("photoshop").constants.SaveOptions.DONOTSAVECHANGES);
-          continue;
-        }
-
         await delay(500);
-        teamNameLayer.textItem.contents = tName.toUpperCase();
+        if (teamNameLayer) {
+          teamNameLayer.textItem.contents = tName.toUpperCase();
+        }
 
         const productColor = (productId.split('_')[1] || '').toUpperCase();
         const isBlack = productColor === 'BLACK';
@@ -129,34 +126,17 @@ async function runGenerateDesigns() {
         console.log(`[LOGO DEBUG] CDN URL: ${logoUrl}`);
         console.log(`[LOGO DEBUG] Local path: ${logoPath}/${logoFile}`);
 
-        let ok = false;
-        if (isBlack) {
-          const logoFileLight = `${tFull}_LIGHT.png`;
-          const lightUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFileLight)}`;
-          console.log(`[LOGO DEBUG] Trying CDN light: ${lightUrl}`);
-          ok = await imageHandler.replaceLayerWithImage(logoLayer, lightUrl);
-          console.log(`[LOGO DEBUG] CDN light result: ${ok}`);
-          if (!ok) {
-            const localLightPath = `${logoPath}/${logoFileLight}`;
-            console.log(`[LOGO DEBUG] Trying local light: ${localLightPath}`);
-            ok = await imageHandler.replaceLayerWithImage(logoLayer, localLightPath, baseFolder);
-            console.log(`[LOGO DEBUG] Local light result: ${ok}`);
+        if (logoLayer) {
+          let ok = false;
+          if (isBlack) {
+            const logoFileLight = `${tFull}_LIGHT.png`;
+            const lightUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFileLight)}`;
+            ok = await imageHandler.replaceLayerWithImage(logoLayer, lightUrl);
+            if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFileLight}`, baseFolder);
           }
-        }
-        if (!ok) {
-          console.log(`[LOGO DEBUG] Trying CDN regular: ${logoUrl}`);
-          ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
-          console.log(`[LOGO DEBUG] CDN regular result: ${ok}`);
-        }
-        if (!ok) {
-          const localPath = `${logoPath}/${logoFile}`;
-          console.log(`[LOGO DEBUG] Trying local regular: ${localPath}`);
-          ok = await imageHandler.replaceLayerWithImage(logoLayer, localPath, baseFolder);
-          console.log(`[LOGO DEBUG] Local regular result: ${ok}`);
-        }
-        if (!ok) {
-          console.warn(`[LOGO DEBUG] All attempts failed for "${tFull}" — falling back to LeagueLogo.png`);
-          await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
+          if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
+          if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFile}`, baseFolder);
+          if (!ok) await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
         }
 
         if (designScript && designScript.apply) {
