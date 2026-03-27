@@ -157,8 +157,27 @@ function isCheckboxChecked(cell) {
   return s === "true" || s === "1" || s === "yes" || s === "x";
 }
 
+/** Column G can repeat size rows (e.g. OS); those are not colors. */
+function isGarmentSizeLabel(label) {
+  const u = String(label ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "")
+    .replace(/[^A-Z0-9]/g, "");
+  if (!u) return false;
+  const sizes = new Set([
+    "OS", "ONESIZE", "O/S",
+    "XXS", "2XS", "XS",
+    "S", "M", "L", "XL",
+    "2XL", "3XL", "4XL", "5XL", "6XL",
+  ]);
+  if (sizes.has(u)) return true;
+  return /^[2-6]XL$/.test(u);
+}
+
 /**
  * Selected product colors: F33 = checkbox, G33 = label (1-based). Scan downward.
+ * Skips labels that look like sizes (OS, S, M, XL, …) so the size block is never treated as colors.
  */
 function parseSelectedColors(rows) {
   const selected = [];
@@ -168,7 +187,8 @@ function parseSelectedColors(rows) {
     const row = rows[r] || [];
     const checked = isCheckboxChecked(row[5]); // F
     const label = String(row[6] ?? "").trim(); // G
-    if (checked && label) selected.push(label);
+    if (!checked || !label || isGarmentSizeLabel(label)) continue;
+    selected.push(label);
   }
   return selected;
 }
