@@ -179,15 +179,15 @@ async function runGenerateDesigns() {
           const mockDoc = app.activeDocument;
 
           const frontLayer = getByName(mockDoc, 'FRONT');
-          const mockLogoLayer = getByName(mockDoc, 'LOGO');
+          const mockLogoLayers = getAllByName(mockDoc, 'LOGO');
 
           if (frontLayer) {
             await imageHandler.placeIntoLayer(frontLayer, exportFile);
           }
-          if (mockLogoLayer) {
-            let mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, logoUrl);
-            if (!mockLogoOk) mockLogoOk = await imageHandler.replaceLayerWithImage(mockLogoLayer, `${logoPath}/${logoFile}`, baseFolder);
-            if (!mockLogoOk) await imageHandler.replaceLayerWithImage(mockLogoLayer, "LOGOS/LeagueLogo.png", baseFolder);
+          for (const mockLogo of mockLogoLayers) {
+            let mockOk = await imageHandler.replaceLayerWithImage(mockLogo, logoUrl);
+            if (!mockOk) mockOk = await imageHandler.replaceLayerWithImage(mockLogo, `${logoPath}/${logoFile}`, baseFolder);
+            if (!mockOk) await imageHandler.replaceLayerWithImage(mockLogo, "LOGOS/LeagueLogo.png", baseFolder);
           }
 
           // Show only the matching conf tier in the TIERS folder
@@ -279,6 +279,18 @@ async function setStrokeColor(layer, hex) {
 const getByName = (parent, name) => {
   const layers = parent.layers || parent;
   return layers.find(l => l.name === name);
+};
+
+const getAllByName = (parent, name) => {
+  const results = [];
+  const search = (layerList) => {
+    for (const l of layerList) {
+      if (l.name === name) results.push(l);
+      if (l.layers && l.layers.length) search(l.layers);
+    }
+  };
+  search(parent.layers || parent);
+  return results;
 };
 
 const setTextColor = (layer, backgroundColor) => {
