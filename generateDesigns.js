@@ -116,9 +116,13 @@ async function runGenerateDesigns() {
 
           const logoLayer = getByName(doc, 'LOGO');
           const teamNameLayer = getByName(doc, 'TEAM NAME');
+          const teamCityLayer = getByName(doc, 'TEAM CITY');
           await delay(500);
           if (teamNameLayer) {
             teamNameLayer.textItem.contents = tName.toUpperCase();
+          }
+          if (teamCityLayer) {
+            teamCityLayer.textItem.contents = tCity.toUpperCase();
           }
 
           const productColor = (colorLabel || productId.split('_')[1] || '').toUpperCase();
