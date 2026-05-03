@@ -9,7 +9,7 @@
 const { app } = require("photoshop");
 
 async function apply(doc, context) {
-  const { teamNameLayer, getByName, tCity } = context;
+  const { teamNameLayer, logoLayer, getByName, tCity } = context;
 
   const teamCityLayer = getByName(doc, "TEAM CITY");
   if (teamCityLayer && teamCityLayer.textItem) {
@@ -36,6 +36,7 @@ async function apply(doc, context) {
     let heightChange = height * (1 - percentScale)
 
     await translate(teamNameLayer, 0, -1 * heightChange);
+    await translate(logoLayer, 0, -1 * heightChange);
 
   }
 }
