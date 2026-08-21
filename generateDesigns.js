@@ -92,7 +92,7 @@ async function runGenerateDesigns() {
         for (let i = 0; i < merchTeams.length; i++){
           const merchFullTeam = merchTeams[i].teamCity + " " + merchTeams[i].teamName;
 
-          let [tCity, tName, tFull, tConf, tColor, tFound, divAbb] = ["", "", "", "", "4a4a4a", false, ""];
+          let [tCity, tName, tFull, tConf, tColor, tColor2, tFound, divAbb] = ["", "", "", "", "4a4a4a", "", false, ""];
 
           for (let c = 0; c < allTeams.length; c++) {
             if (allTeams[c].fullTeam === merchFullTeam) {
@@ -102,6 +102,7 @@ async function runGenerateDesigns() {
               tFull = allTeams[c].fullTeam;
               tConf = allTeams[c].conf;
               tColor = allTeams[c].color1 || "4a4a4a";
+              tColor2 = allTeams[c].color2 || "";
               tFound = true;
               break;
             }
@@ -118,7 +119,12 @@ async function runGenerateDesigns() {
           const teamNameLayer = getByName(doc, 'TEAM NAME');
           const teamCityLayer = getByName(doc, 'TEAM CITY');
           await delay(500);
+
+          // Capture designed width before contents change (UXP may reset transforms on edit).
+          let teamNameMaxWidth = null;
           if (teamNameLayer) {
+            const b = teamNameLayer.boundsNoEffects || teamNameLayer.bounds;
+            teamNameMaxWidth = b.right - b.left;
             teamNameLayer.textItem.contents = tName.toUpperCase();
           }
           if (teamCityLayer) {
@@ -138,14 +144,23 @@ async function runGenerateDesigns() {
           if (logoLayer) {
             let ok = false;
             if (isBlack) {
-              const logoFileLight = `${tFull}_LIGHT.png`;
-              const lightUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(logoFileLight)}`;
-              ok = await imageHandler.replaceLayerWithImage(logoLayer, lightUrl);
-              if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFileLight}`, baseFolder);
+              const blackLogoSuffixes = ["_WHITE", "_LIGHT"];
+              for (const suffix of blackLogoSuffixes) {
+                const variantFile = `${tFull}${suffix}.png`;
+                const variantUrl = `${imageHandler.IMAGE_CDN_BASE}/${encodeURIComponent(baseFolder.name)}/${logoPath}/${encodeURIComponent(variantFile)}`;
+                ok = await imageHandler.replaceLayerWithImage(logoLayer, variantUrl);
+                if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${variantFile}`, baseFolder);
+                if (ok) break;
+              }
             }
             if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, logoUrl);
             if (!ok) ok = await imageHandler.replaceLayerWithImage(logoLayer, `${logoPath}/${logoFile}`, baseFolder);
             if (!ok) await imageHandler.replaceLayerWithImage(logoLayer, "LOGOS/LeagueLogo.png", baseFolder);
+          }
+
+          const teamColorLayers = getAllByName(doc, "TEAM COLOR");
+          for (const teamColorLayer of teamColorLayers) {
+            await fillColor(teamColorLayer, tColor);
           }
 
           if (designScript && designScript.apply) {
@@ -157,6 +172,9 @@ async function runGenerateDesigns() {
               tConf,
               divAbb,
               tColor,
+              tColor2,
+              productColor,
+              teamNameMaxWidth,
               logoLayer: getByName(doc, "LOGO"),
               teamNameLayer: getByName(doc, "TEAM NAME"),
               getByName: (parent, name) => getByName(parent || doc, name),

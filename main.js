@@ -1,6 +1,7 @@
 const storage = require("./storage.js");
 const leagueConfig = require("./leagueConfig.js");
 const generateDesigns = require("./generateDesigns.js");
+const generateNumbers = require("./generateNumbers.js");
 const uxpStorage = require("uxp").storage;
 const { app, core } = require("photoshop");
 
@@ -131,6 +132,7 @@ document.getElementById("btnListTeams").addEventListener("click", async () => {
 });
 
 document.getElementById("btnGenerateDesigns").addEventListener("click", generateDesigns.runGenerateDesigns);
+document.getElementById("btnGenerateNumbers").addEventListener("click", generateNumbers.runGenerateNumbers);
 
 function setDesignId(el, designId) {
   el.textContent = designId || "—";
